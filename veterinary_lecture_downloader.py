@@ -15,6 +15,9 @@ import platform
 import zipfile
 import urllib.request
 import shutil
+import logging
+import multiprocessing
+from datetime import datetime
 
 class VeterinaryLectureDownloader:
     def __init__(self, root):
@@ -22,6 +25,9 @@ class VeterinaryLectureDownloader:
         self.root.title("수의학 강의 다운로더")
         self.root.geometry("700x550")
         self.root.resizable(True, True)
+
+        # 로그 파일 설정
+        self.setup_logging()
 
         # 기본 다운로드 경로 설정
         self.default_download_path = str(Path.home() / "Downloads" / "수의학강의")
@@ -36,6 +42,33 @@ class VeterinaryLectureDownloader:
         # yt-dlp 및 ffmpeg 확인
         self.check_ytdlp()
         self.check_ffmpeg()
+
+    def setup_logging(self):
+        """로그 파일 설정"""
+        # 로그 파일 경로 (EXE와 같은 디렉토리)
+        if getattr(sys, 'frozen', False):
+            # PyInstaller로 패키징된 경우
+            log_dir = Path(sys.executable).parent
+        else:
+            log_dir = Path(__file__).parent
+
+        log_file = log_dir / f"veterinary_downloader_{datetime.now().strftime('%Y%m%d')}.log"
+
+        # 로깅 설정
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s [%(levelname)s] %(message)s',
+            handlers=[
+                logging.FileHandler(log_file, encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("="*60)
+        self.logger.info("수의학 강의 다운로더 시작")
+        self.logger.info(f"로그 파일: {log_file}")
+        self.logger.info("="*60)
 
     def create_widgets(self):
         # 메인 프레임
@@ -132,10 +165,14 @@ class VeterinaryLectureDownloader:
             self.path_entry.insert(0, folder)
 
     def log(self, message):
-        """로그 메시지 추가"""
+        """로그 메시지 추가 (GUI 및 파일)"""
+        # GUI에 표시
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
         self.root.update_idletasks()
+
+        # 파일에 기록
+        self.logger.info(message)
 
     def check_ytdlp(self):
         """yt-dlp 설치 여부 확인 및 자동 설치"""
@@ -447,6 +484,29 @@ class VeterinaryLectureDownloader:
 
 
 def main():
+    # Windows에서 multiprocessing 문제 방지 (필수!)
+    # PyInstaller로 만든 EXE에서 여러 프로세스가 켜지는 것을 방지
+    multiprocessing.freeze_support()
+
+    # 로그 초기 설정
+    try:
+        if getattr(sys, 'frozen', False):
+            log_dir = Path(sys.executable).parent
+        else:
+            log_dir = Path(__file__).parent
+
+        log_file = log_dir / f"veterinary_downloader_{datetime.now().strftime('%Y%m%d')}.log"
+
+        # 간단한 초기 로그
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"\n{'='*60}\n")
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 프로그램 시작\n")
+            f.write(f"실행 파일: {sys.executable if getattr(sys, 'frozen', False) else __file__}\n")
+            f.write(f"작업 디렉토리: {os.getcwd()}\n")
+            f.write(f"{'='*60}\n")
+    except Exception as e:
+        print(f"로그 초기화 오류: {e}")
+
     root = tk.Tk()
 
     # 아이콘 설정 (실행 파일에 포함된 경우)

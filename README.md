@@ -132,6 +132,14 @@ python3 build_exe.py
 
 ## 🔧 문제 해결
 
+### 로그 파일 확인
+프로그램 실행 시 자동으로 로그 파일이 생성됩니다:
+- **위치**: EXE 파일과 같은 디렉토리
+- **파일명**: `veterinary_downloader_YYYYMMDD.log`
+- **내용**: 모든 실행 기록, 오류 메시지, 다운로드 상태
+
+문제 발생 시 이 로그 파일을 확인하면 원인을 파악할 수 있습니다.
+
 ### yt-dlp 설치 실패
 수동으로 설치:
 ```bash
@@ -143,8 +151,9 @@ pipx install yt-dlp
 ### 다운로드 실패
 1. URL이 정확한지 확인
 2. 인터넷 연결 확인
-3. 로그 메시지 확인
-4. yt-dlp 업데이트:
+3. **로그 파일 확인** (`veterinary_downloader_*.log`)
+4. 로그에 표시된 오류 메시지 확인
+5. yt-dlp 업데이트:
    ```bash
    pip install --upgrade yt-dlp
    ```
