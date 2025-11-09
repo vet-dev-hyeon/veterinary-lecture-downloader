@@ -32,10 +32,12 @@ def build_executable():
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyinstaller'])
         print("✓ PyInstaller 설치 완료")
 
-    # yt-dlp 설치 확인
+    # yt-dlp 및 pycryptodomex 설치 확인
+    print("필요한 패키지 설치 중...")
     try:
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'yt-dlp'],
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'yt-dlp', 'pycryptodomex'],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("✓ yt-dlp, pycryptodomex 설치 완료")
     except:
         pass
 
@@ -69,10 +71,14 @@ def build_executable():
             '--version-file=version_info.txt',
         ])
 
-    # yt-dlp를 포함시키기 위한 hidden import
+    # yt-dlp와 Cryptodome을 포함시키기 위한 hidden import
     cmd.extend([
         '--hidden-import=yt_dlp',
         '--collect-all=yt_dlp',
+        '--hidden-import=Cryptodome',
+        '--hidden-import=Cryptodome.Cipher',
+        '--hidden-import=Cryptodome.Cipher.AES',
+        '--collect-all=Cryptodome',
     ])
 
     # 메인 스크립트

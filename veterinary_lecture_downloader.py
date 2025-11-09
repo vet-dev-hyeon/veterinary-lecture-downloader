@@ -282,6 +282,13 @@ class VeterinaryLectureDownloader:
             self.log("✓ pycryptodomex 이미 설치됨")
             return True
         except ImportError:
+            # PyInstaller로 빌드된 EXE에서는 pip 설치를 하지 않음 (무한 루프 방지)
+            if getattr(sys, 'frozen', False):
+                self.log("⚠ pycryptodomex 없음 (EXE 환경에서는 자동 설치 불가)")
+                self.log("  다운로드는 정상 작동하지만 약간 느릴 수 있습니다")
+                return False
+
+            # 일반 Python 환경에서만 설치 시도
             try:
                 self.log("pycryptodomex 설치 중...")
                 result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'pycryptodomex'],
