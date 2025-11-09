@@ -12,6 +12,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 from pathlib import Path
 import platform
+import zipfile
+import urllib.request
+import shutil
 
 class VeterinaryLectureDownloader:
     def __init__(self, root):
@@ -23,11 +26,16 @@ class VeterinaryLectureDownloader:
         # 기본 다운로드 경로 설정
         self.default_download_path = str(Path.home() / "Downloads" / "수의학강의")
 
+        # ffmpeg 경로
+        self.ffmpeg_path = None
+        self.ffmpeg_dir = None
+
         # UI 생성
         self.create_widgets()
 
-        # yt-dlp 확인
+        # yt-dlp 및 ffmpeg 확인
         self.check_ytdlp()
+        self.check_ffmpeg()
 
     def create_widgets(self):
         # 메인 프레임
@@ -185,6 +193,127 @@ class VeterinaryLectureDownloader:
 
         return False
 
+    def check_ffmpeg(self):
+        """ffmpeg 설치 여부 확인 및 자동 다운로드"""
+        self.log("ffmpeg 확인 중...")
+
+        # 시스템에 설치된 ffmpeg 확인
+        try:
+            result = subprocess.run(['ffmpeg', '-version'],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                self.ffmpeg_path = 'ffmpeg'
+                self.log("✓ ffmpeg 발견 (시스템 설치)")
+
+                # pycryptodomex도 설치
+                self.install_pycryptodomex()
+                return True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # 로컬 ffmpeg 디렉토리 확인
+        local_ffmpeg_dir = Path.home() / ".veterinary_downloader" / "ffmpeg"
+        ffmpeg_exe = local_ffmpeg_dir / ("ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg")
+
+        if ffmpeg_exe.exists():
+            self.ffmpeg_path = str(ffmpeg_exe)
+            self.ffmpeg_dir = str(local_ffmpeg_dir)
+            self.log(f"✓ ffmpeg 발견: {self.ffmpeg_path}")
+
+            # pycryptodomex도 설치
+            self.install_pycryptodomex()
+            return True
+
+        # ffmpeg가 없으면 다운로드
+        self.log("ffmpeg가 없습니다. 자동 다운로드를 시작합니다...")
+        self.log("(다운로드 속도 향상을 위해 필요합니다)")
+
+        if self.download_ffmpeg():
+            self.log("✓ ffmpeg 다운로드 완료!")
+
+            # pycryptodomex도 설치
+            self.install_pycryptodomex()
+            return True
+        else:
+            self.log("⚠ ffmpeg 다운로드 실패 - 다운로드가 느릴 수 있습니다")
+            return False
+
+    def install_pycryptodomex(self):
+        """pycryptodomex 설치 (AES 암호화 스트림 고속 처리용)"""
+        try:
+            import Cryptodome
+            self.log("✓ pycryptodomex 이미 설치됨")
+            return True
+        except ImportError:
+            try:
+                self.log("pycryptodomex 설치 중...")
+                result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'pycryptodomex'],
+                                      capture_output=True, text=True, timeout=60)
+                if result.returncode == 0:
+                    self.log("✓ pycryptodomex 설치 완료")
+                    return True
+            except Exception as e:
+                self.log(f"pycryptodomex 설치 실패: {str(e)}")
+        return False
+
+    def download_ffmpeg(self):
+        """Windows용 ffmpeg 자동 다운로드"""
+        if platform.system() != "Windows":
+            self.log("자동 다운로드는 Windows만 지원됩니다.")
+            self.log("macOS/Linux: brew install ffmpeg 또는 apt install ffmpeg 사용")
+            return False
+
+        try:
+            # ffmpeg 다운로드 URL (공식 빌드)
+            ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+
+            # 다운로드 디렉토리
+            download_dir = Path.home() / ".veterinary_downloader"
+            download_dir.mkdir(parents=True, exist_ok=True)
+
+            zip_path = download_dir / "ffmpeg.zip"
+
+            self.log(f"ffmpeg 다운로드 중... (약 100MB, 시간이 걸릴 수 있습니다)")
+
+            # 다운로드
+            urllib.request.urlretrieve(ffmpeg_url, zip_path)
+
+            self.log("압축 해제 중...")
+
+            # 압축 해제
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(download_dir)
+
+            # ffmpeg.exe 찾기
+            for item in download_dir.iterdir():
+                if item.is_dir() and 'ffmpeg' in item.name.lower():
+                    bin_dir = item / "bin"
+                    if bin_dir.exists():
+                        # bin 디렉토리를 ffmpeg로 이름 변경
+                        ffmpeg_dir = download_dir / "ffmpeg"
+                        if ffmpeg_dir.exists():
+                            shutil.rmtree(ffmpeg_dir)
+                        shutil.move(str(bin_dir), str(ffmpeg_dir))
+
+                        # 원본 디렉토리 삭제
+                        shutil.rmtree(item)
+                        break
+
+            # zip 파일 삭제
+            zip_path.unlink()
+
+            # ffmpeg 경로 설정
+            ffmpeg_exe = download_dir / "ffmpeg" / "ffmpeg.exe"
+            if ffmpeg_exe.exists():
+                self.ffmpeg_path = str(ffmpeg_exe)
+                self.ffmpeg_dir = str(ffmpeg_exe.parent)
+                return True
+
+        except Exception as e:
+            self.log(f"ffmpeg 다운로드 오류: {str(e)}")
+
+        return False
+
     def start_download(self):
         """다운로드 시작"""
         url = self.url_entry.get().strip()
@@ -240,10 +369,33 @@ class VeterinaryLectureDownloader:
             # 진행 상태 표시
             cmd.append('--newline')
 
+            # ffmpeg 경로 설정 (있는 경우)
+            if self.ffmpeg_path:
+                cmd.extend(['--ffmpeg-location', self.ffmpeg_path])
+                self.log(f"✓ ffmpeg 사용: {self.ffmpeg_path}")
+
+            # 다운로드 속도 향상 옵션
+            cmd.extend([
+                '--concurrent-fragments', '5',  # 동시 다운로드 fragment 수 (기본 1 -> 5로 증가)
+                '--buffer-size', '16K',          # 버퍼 크기 증가
+                '--http-chunk-size', '10M',      # HTTP 청크 크기 설정
+                '--retries', '10',               # 재시도 횟수
+                '--fragment-retries', '10',      # fragment 재시도 횟수
+            ])
+
             # URL
             cmd.append(url)
 
             self.log(f"실행 명령: {' '.join(cmd)}")
+            self.log("고속 다운로드 모드로 시작합니다...")
+
+            # 환경 변수 설정 (ffmpeg 경로)
+            env = os.environ.copy()
+            if self.ffmpeg_dir:
+                if platform.system() == "Windows":
+                    env['PATH'] = f"{self.ffmpeg_dir};{env.get('PATH', '')}"
+                else:
+                    env['PATH'] = f"{self.ffmpeg_dir}:{env.get('PATH', '')}"
 
             # 다운로드 실행
             self.download_process = subprocess.Popen(
@@ -252,7 +404,8 @@ class VeterinaryLectureDownloader:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                env=env
             )
 
             # 출력 로그 실시간 표시
